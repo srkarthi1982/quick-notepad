@@ -1,0 +1,25 @@
+---
+import { AvContainer, AvButton } from "@ansiversa/components";
+
+interface Props {
+  appName: string;
+  subtitle?: string;
+  logoPath?: string;
+  rootAppUrl?: string;
+}
+
+const { appName, subtitle = "Fast personal workspace", logoPath = "/favicon.svg", rootAppUrl = "https://ansiversa.com" } = Astro.props;
+---
+
+<header class="border-b border-slate-800/80 bg-slate-950/95 backdrop-blur">
+  <AvContainer className="py-4 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3 min-w-0">
+      <img src={logoPath} alt={`${appName} logo`} class="h-8 w-8 rounded-md border border-slate-700/80" />
+      <div class="min-w-0">
+        <p class="text-sm text-slate-300 truncate">{appName}</p>
+        <p class="text-xs text-slate-400 truncate">{subtitle}</p>
+      </div>
+    </div>
+    <AvButton href={`${rootAppUrl}/dashboard`} variant="secondary" size="sm">Dashboard</AvButton>
+  </AvContainer>
+</header>

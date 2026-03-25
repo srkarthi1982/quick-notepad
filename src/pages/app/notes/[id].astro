@@ -1,0 +1,40 @@
+---
+import MiniAppLayout from "../../../layouts/MiniAppLayout.astro";
+import { AvButton, AvContainer } from "@ansiversa/components";
+import { getQuickNoteDetail } from "../../../lib/quick-notes";
+
+const user = Astro.locals.user!;
+const note = await getQuickNoteDetail(user.id, Astro.params.id!);
+
+if (!note) {
+  return Astro.redirect("/app");
+}
+---
+
+<MiniAppLayout title={`${note.title} | Quick Notepad`} rootAppUrl={Astro.locals.rootAppUrl}>
+  <AvContainer className="py-8 max-w-3xl">
+    <div class="mb-4"><AvButton href="/app" variant="secondary" size="sm">← Back to notes</AvButton></div>
+    <article class="rounded-xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-semibold text-white">{note.title}</h1>
+          <p class="text-sm text-slate-400">{note.category || "Uncategorized"}</p>
+        </div>
+        <div class="flex gap-2">
+          <form method="POST" action={`/api/notes/${note.id}`}><input type="hidden" name="action" value="togglePinned" /><button class="text-xs border border-slate-700 rounded px-2 py-1">{note.isPinned ? "Pinned" : "Pin"}</button></form>
+          <form method="POST" action={`/api/notes/${note.id}`}><input type="hidden" name="action" value="toggleFavorite" /><button class="text-xs border border-slate-700 rounded px-2 py-1">{note.isFavorite ? "Favorited" : "Favorite"}</button></form>
+        </div>
+      </div>
+      <p class="text-slate-200 whitespace-pre-wrap leading-relaxed">{note.content}</p>
+      <div class="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+        <p>Created: {new Date(note.createdAt).toLocaleString()}</p>
+        <p>Updated: {new Date(note.updatedAt).toLocaleString()}</p>
+        <p>Status: {note.status}</p>
+      </div>
+      <form class="pt-2" method="POST" action={`/api/notes/${note.id}`}>
+        <input type="hidden" name="action" value={note.status === "archived" ? "restore" : "archive"} />
+        <button class="text-sm rounded border border-slate-700 px-3 py-2">{note.status === "archived" ? "Restore note" : "Archive note"}</button>
+      </form>
+    </article>
+  </AvContainer>
+</MiniAppLayout>

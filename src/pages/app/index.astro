@@ -1,0 +1,82 @@
+---
+import MiniAppLayout from "../../layouts/MiniAppLayout.astro";
+import { AvContainer, AvButton } from "@ansiversa/components";
+import { getQuickNoteSummary, listQuickNotes } from "../../lib/quick-notes";
+
+const user = Astro.locals.user!;
+const notes = await listQuickNotes(user.id, { status: "all" });
+const summary = await getQuickNoteSummary(user.id);
+const categories = Array.from(new Set(notes.map((note) => note.category).filter(Boolean)));
+---
+
+<MiniAppLayout title="Quick Notepad App" rootAppUrl={Astro.locals.rootAppUrl}>
+  <AvContainer className="py-8" x-data x-init={`$store.quickNotepad.init(${JSON.stringify({ notes, summary })})`}>
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <h1 class="text-2xl font-semibold text-white">Your notes workspace</h1>
+      <AvButton type="button" @click="$store.quickNotepad.openCreate()">New note</AvButton>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6 text-sm">
+      <div class="rounded-lg border border-slate-800 p-3 bg-slate-900/60">Total <strong class="block text-xl" x-text="$store.quickNotepad.summary?.totalNotes ?? 0"></strong></div>
+      <div class="rounded-lg border border-slate-800 p-3 bg-slate-900/60">Active <strong class="block text-xl" x-text="$store.quickNotepad.summary?.activeNotes ?? 0"></strong></div>
+      <div class="rounded-lg border border-slate-800 p-3 bg-slate-900/60">Pinned <strong class="block text-xl" x-text="$store.quickNotepad.summary?.pinnedNotes ?? 0"></strong></div>
+      <div class="rounded-lg border border-slate-800 p-3 bg-slate-900/60">Favorites <strong class="block text-xl" x-text="$store.quickNotepad.summary?.favoriteNotes ?? 0"></strong></div>
+      <div class="rounded-lg border border-slate-800 p-3 bg-slate-900/60">Archived <strong class="block text-xl" x-text="$store.quickNotepad.summary?.archivedNotes ?? 0"></strong></div>
+      <div class="rounded-lg border border-slate-800 p-3 bg-slate-900/60">Recent (7d) <strong class="block text-xl" x-text="$store.quickNotepad.summary?.recentlyUpdatedCount ?? 0"></strong></div>
+    </div>
+
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4 mb-4 flex flex-wrap gap-3 items-center">
+      <input class="bg-slate-950 border border-slate-700 rounded-md px-3 py-2 text-sm min-w-52" placeholder="Search notes..." x-model="$store.quickNotepad.query" />
+      <select class="bg-slate-950 border border-slate-700 rounded-md px-3 py-2 text-sm" x-model="$store.quickNotepad.activeTab">
+        <option value="overview">Overview</option>
+        <option value="notes">Notes</option>
+        <option value="favorites">Favorites</option>
+        <option value="archived">Archived</option>
+      </select>
+      <select class="bg-slate-950 border border-slate-700 rounded-md px-3 py-2 text-sm" x-model="$store.quickNotepad.categoryFilter">
+        <option value="">All categories</option>
+        {categories.map((category) => <option value={category!}>{category}</option>)}
+      </select>
+    </div>
+
+    <p class="text-sm mb-3" :class="$store.quickNotepad.flash.type === 'error' ? 'text-rose-400' : 'text-emerald-400'" x-text="$store.quickNotepad.flash.message" x-show="$store.quickNotepad.flash.message"></p>
+
+    <div class="grid gap-3">
+      <template x-for="note in $store.quickNotepad.filteredNotes" :key="note.id">
+        <article class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+          <div class="flex items-start justify-between gap-3">
+            <a class="font-medium text-white hover:underline" :href="`/app/notes/${note.id}`" x-text="note.title"></a>
+            <div class="flex gap-2">
+              <button class="text-xs border border-slate-700 rounded px-2 py-1" @click="$store.quickNotepad.triggerAction(note.id, 'togglePinned')" x-text="note.isPinned ? 'Unpin' : 'Pin'"></button>
+              <button class="text-xs border border-slate-700 rounded px-2 py-1" @click="$store.quickNotepad.triggerAction(note.id, 'toggleFavorite')" x-text="note.isFavorite ? 'Unfavorite' : 'Favorite'"></button>
+              <button class="text-xs border border-slate-700 rounded px-2 py-1" @click="$store.quickNotepad.openEdit(note)">Edit</button>
+            </div>
+          </div>
+          <p class="text-slate-300 text-sm mt-2 line-clamp-2" x-text="note.content"></p>
+          <div class="mt-3 flex items-center justify-between text-xs text-slate-400">
+            <span x-text="note.category || 'Uncategorized'"></span>
+            <div class="flex gap-2">
+              <button @click="$store.quickNotepad.triggerAction(note.id, note.status === 'archived' ? 'restore' : 'archive')" x-text="note.status === 'archived' ? 'Restore' : 'Archive'"></button>
+            </div>
+          </div>
+        </article>
+      </template>
+      <p class="text-slate-400 text-sm" x-show="!$store.quickNotepad.filteredNotes.length">No notes match this view yet.</p>
+    </div>
+
+    <div x-show="$store.quickNotepad.drawerOpen" class="fixed inset-0 z-40 bg-black/60 p-4">
+      <div class="max-w-xl mx-auto rounded-xl border border-slate-700 bg-slate-950 p-5 mt-16">
+        <h2 class="text-lg font-semibold mb-4" x-text="$store.quickNotepad.activeNote ? 'Edit note' : 'Create note'"></h2>
+        <form @submit.prevent="$store.quickNotepad.saveNote($el)" class="space-y-3">
+          <input name="title" required class="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2" placeholder="Title" :value="$store.quickNotepad.activeNote?.title ?? ''" />
+          <textarea name="content" required class="w-full h-36 bg-slate-900 border border-slate-700 rounded-md px-3 py-2" placeholder="Write your note" x-text="$store.quickNotepad.activeNote?.content ?? ''"></textarea>
+          <input name="category" class="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2" placeholder="Category (optional)" :value="$store.quickNotepad.activeNote?.category ?? ''" />
+          <div class="flex justify-end gap-2">
+            <button type="button" class="px-3 py-2 border border-slate-700 rounded-md" @click="$store.quickNotepad.drawerOpen = false">Cancel</button>
+            <button type="submit" class="px-3 py-2 rounded-md bg-white text-slate-950" :disabled="$store.quickNotepad.isSubmitting">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </AvContainer>
+</MiniAppLayout>

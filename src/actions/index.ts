@@ -1,260 +1,127 @@
 import { defineAction, ActionError, type ActionAPIContext } from "astro:actions";
 import { z } from "astro:schema";
 import {
-  NotepadCategories,
-  Notes,
-  and,
-  db,
-  eq,
-} from "astro:db";
+  archiveQuickNote,
+  createQuickNote,
+  getQuickNoteDetail,
+  listQuickNotes,
+  restoreQuickNote,
+  toggleQuickNoteFavorite,
+  toggleQuickNotePinned,
+  updateQuickNote,
+} from "../lib/quick-notes";
 
 function requireUser(context: ActionAPIContext) {
-  const locals = context.locals as App.Locals | undefined;
-  const user = locals?.user;
+  const user = (context.locals as App.Locals | undefined)?.user;
 
   if (!user) {
-    throw new ActionError({
-      code: "UNAUTHORIZED",
-      message: "You must be signed in to perform this action.",
-    });
+    throw new ActionError({ code: "UNAUTHORIZED", message: "You must be signed in." });
   }
 
   return user;
 }
 
-async function getOwnedCategory(categoryId: string, userId: string) {
-  const [category] = await db
-    .select()
-    .from(NotepadCategories)
-    .where(and(eq(NotepadCategories.id, categoryId), eq(NotepadCategories.userId, userId)));
-
-  if (!category) {
-    throw new ActionError({
-      code: "NOT_FOUND",
-      message: "Category not found.",
-    });
-  }
-
-  return category;
+function notFound() {
+  throw new ActionError({ code: "NOT_FOUND", message: "Note not found." });
 }
 
 export const server = {
-  createCategory: defineAction({
+  createQuickNote: defineAction({
     input: z.object({
-      name: z.string().min(1),
-      icon: z.string().optional(),
-      sortOrder: z.number().optional(),
+      title: z.string().trim().min(1).max(160),
+      content: z.string().trim().min(1).max(20000),
+      category: z.string().trim().max(80).optional(),
     }),
     handler: async (input, context) => {
       const user = requireUser(context);
-      const now = new Date();
-
-      const [category] = await db
-        .insert(NotepadCategories)
-        .values({
-          id: crypto.randomUUID(),
-          userId: user.id,
-          name: input.name,
-          icon: input.icon,
-          sortOrder: input.sortOrder,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
-
-      return { success: true, data: { category } };
-    },
-  }),
-
-  updateCategory: defineAction({
-    input: z
-      .object({
-        id: z.string().min(1),
-        name: z.string().optional(),
-        icon: z.string().optional(),
-        sortOrder: z.number().optional(),
-      })
-      .refine(
-        (input) =>
-          input.name !== undefined ||
-          input.icon !== undefined ||
-          input.sortOrder !== undefined,
-        { message: "At least one field must be provided to update." }
-      ),
-    handler: async (input, context) => {
-      const user = requireUser(context);
-      await getOwnedCategory(input.id, user.id);
-
-      const [category] = await db
-        .update(NotepadCategories)
-        .set({
-          ...(input.name !== undefined ? { name: input.name } : {}),
-          ...(input.icon !== undefined ? { icon: input.icon } : {}),
-          ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(NotepadCategories.id, input.id))
-        .returning();
-
-      return { success: true, data: { category } };
-    },
-  }),
-
-  listCategories: defineAction({
-    input: z.object({}).optional(),
-    handler: async (_input, context) => {
-      const user = requireUser(context);
-
-      const categories = await db
-        .select()
-        .from(NotepadCategories)
-        .where(eq(NotepadCategories.userId, user.id));
-
-      return { success: true, data: { items: categories, total: categories.length } };
-    },
-  }),
-
-  createNote: defineAction({
-    input: z.object({
-      categoryId: z.string().optional(),
-      title: z.string().optional(),
-      body: z.string().min(1),
-      color: z.string().optional(),
-      isPinned: z.boolean().optional(),
-      isArchived: z.boolean().optional(),
-    }),
-    handler: async (input, context) => {
-      const user = requireUser(context);
-      if (input.categoryId) {
-        await getOwnedCategory(input.categoryId, user.id);
-      }
-
-      const now = new Date();
-      const [note] = await db
-        .insert(Notes)
-        .values({
-          id: crypto.randomUUID(),
-          userId: user.id,
-          categoryId: input.categoryId ?? null,
-          title: input.title,
-          body: input.body,
-          color: input.color,
-          isPinned: input.isPinned ?? false,
-          isArchived: input.isArchived ?? false,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
-
+      const note = await createQuickNote(user.id, input);
       return { success: true, data: { note } };
     },
   }),
 
-  updateNote: defineAction({
+  updateQuickNote: defineAction({
     input: z
       .object({
         id: z.string().min(1),
-        categoryId: z.string().optional(),
-        title: z.string().optional(),
-        body: z.string().optional(),
-        color: z.string().optional(),
-        isPinned: z.boolean().optional(),
-        isArchived: z.boolean().optional(),
+        title: z.string().trim().min(1).max(160).optional(),
+        content: z.string().trim().min(1).max(20000).optional(),
+        category: z.string().trim().max(80).optional().nullable(),
       })
-      .refine(
-        (input) =>
-          input.categoryId !== undefined ||
-          input.title !== undefined ||
-          input.body !== undefined ||
-          input.color !== undefined ||
-          input.isPinned !== undefined ||
-          input.isArchived !== undefined,
-        { message: "At least one field must be provided to update." }
-      ),
+      .refine((input) => input.title !== undefined || input.content !== undefined || input.category !== undefined, {
+        message: "At least one field is required.",
+      }),
     handler: async (input, context) => {
       const user = requireUser(context);
-
-      const [existing] = await db
-        .select()
-        .from(Notes)
-        .where(and(eq(Notes.id, input.id), eq(Notes.userId, user.id)));
-
-      if (!existing) {
-        throw new ActionError({
-          code: "NOT_FOUND",
-          message: "Note not found.",
-        });
-      }
-
-      if (input.categoryId !== undefined && input.categoryId !== null) {
-        await getOwnedCategory(input.categoryId, user.id);
-      }
-
-      const [note] = await db
-        .update(Notes)
-        .set({
-          ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
-          ...(input.title !== undefined ? { title: input.title } : {}),
-          ...(input.body !== undefined ? { body: input.body } : {}),
-          ...(input.color !== undefined ? { color: input.color } : {}),
-          ...(input.isPinned !== undefined ? { isPinned: input.isPinned } : {}),
-          ...(input.isArchived !== undefined ? { isArchived: input.isArchived } : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(Notes.id, input.id))
-        .returning();
-
+      const note = await updateQuickNote(user.id, input.id, input);
+      if (!note) notFound();
       return { success: true, data: { note } };
     },
   }),
 
-  deleteNote: defineAction({
-    input: z.object({
-      id: z.string().min(1),
-    }),
+  archiveQuickNote: defineAction({
+    input: z.object({ id: z.string().min(1) }),
     handler: async (input, context) => {
       const user = requireUser(context);
-
-      const result = await db.delete(Notes).where(and(eq(Notes.id, input.id), eq(Notes.userId, user.id)));
-
-      if (result.rowsAffected === 0) {
-        throw new ActionError({
-          code: "NOT_FOUND",
-          message: "Note not found.",
-        });
-      }
-
-      return { success: true };
+      const note = await archiveQuickNote(user.id, input.id);
+      if (!note) notFound();
+      return { success: true, data: { note } };
     },
   }),
 
-  listNotes: defineAction({
-    input: z.object({
-      categoryId: z.string().optional(),
-      includeArchived: z.boolean().default(false),
-      pinnedOnly: z.boolean().default(false),
-    }),
+  restoreQuickNote: defineAction({
+    input: z.object({ id: z.string().min(1) }),
     handler: async (input, context) => {
       const user = requireUser(context);
+      const note = await restoreQuickNote(user.id, input.id);
+      if (!note) notFound();
+      return { success: true, data: { note } };
+    },
+  }),
 
-      if (input.categoryId) {
-        await getOwnedCategory(input.categoryId, user.id);
-      }
+  toggleQuickNotePinned: defineAction({
+    input: z.object({ id: z.string().min(1) }),
+    handler: async (input, context) => {
+      const user = requireUser(context);
+      const note = await toggleQuickNotePinned(user.id, input.id);
+      if (!note) notFound();
+      return { success: true, data: { note } };
+    },
+  }),
 
-      const filters = [eq(Notes.userId, user.id)];
-      if (input.categoryId) {
-        filters.push(eq(Notes.categoryId, input.categoryId));
-      }
-      if (!input.includeArchived) {
-        filters.push(eq(Notes.isArchived, false));
-      }
-      if (input.pinnedOnly) {
-        filters.push(eq(Notes.isPinned, true));
-      }
+  toggleQuickNoteFavorite: defineAction({
+    input: z.object({ id: z.string().min(1) }),
+    handler: async (input, context) => {
+      const user = requireUser(context);
+      const note = await toggleQuickNoteFavorite(user.id, input.id);
+      if (!note) notFound();
+      return { success: true, data: { note } };
+    },
+  }),
 
-      const notes = await db.select().from(Notes).where(and(...filters));
+  listQuickNotes: defineAction({
+    input: z
+      .object({
+        status: z.enum(["active", "archived", "all"]).optional(),
+        search: z.string().max(120).optional(),
+        category: z.string().max(80).optional(),
+        favoritesOnly: z.boolean().optional(),
+        pinnedOnly: z.boolean().optional(),
+      })
+      .optional(),
+    handler: async (input, context) => {
+      const user = requireUser(context);
+      const items = await listQuickNotes(user.id, input);
+      return { success: true, data: { items, total: items.length } };
+    },
+  }),
 
-      return { success: true, data: { items: notes, total: notes.length } };
+  getQuickNoteDetail: defineAction({
+    input: z.object({ id: z.string().min(1) }),
+    handler: async (input, context) => {
+      const user = requireUser(context);
+      const note = await getQuickNoteDetail(user.id, input.id);
+      if (!note) notFound();
+      return { success: true, data: { note } };
     },
   }),
 };

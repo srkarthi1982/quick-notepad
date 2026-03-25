@@ -26,5 +26,6 @@ MANDATORY: After completing each task, update this repo’s AGENTS.md Task Log (
 
 ## Task Log (Recent)
 - Keep newest first; include date and short summary.
+- 2026-03-25 Implemented full Quick Notepad V1 (Astro DB QuickNotes schema + ownership-enforced actions/API + Alpine global store + landing/workspace/detail routes + middleware route protection + dashboard/notification webhooks); validated with `npm run build`, and documented `npm run typecheck` blocker due registry policy.
 - 2026-02-09 Added repo-level AGENTS.md enforcement contract (workspace reference + mandatory task-log update rule).
 - 2026-02-09 Initialized repo AGENTS baseline for single-repo Codex/AI safety.

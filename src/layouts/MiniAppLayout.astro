@@ -1,0 +1,18 @@
+---
+import "@ansiversa/components/styles/global.css";
+import { WebLayout } from "@ansiversa/components";
+import AvMiniAppBar from "../components/AvMiniAppBar.astro";
+
+interface Props {
+  title?: string;
+  description?: string;
+  rootAppUrl?: string;
+}
+
+const props = Astro.props;
+---
+
+<WebLayout {...props}>
+  <AvMiniAppBar appName="Quick Notepad" subtitle="Focus, capture, organize" rootAppUrl={props.rootAppUrl} />
+  <slot />
+</WebLayout>
