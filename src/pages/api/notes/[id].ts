@@ -12,6 +12,10 @@ function getUser(locals: App.Locals) {
   return locals.user ?? null;
 }
 
+function readOptionalText(value: unknown) {
+  return typeof value === "string" ? value.trim() : undefined;
+}
+
 async function readBody(request: Request) {
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
@@ -37,10 +41,23 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const body = await readBody(request);
+  const title = readOptionalText(body.title);
+  const content = readOptionalText(body.content);
+  const category =
+    typeof body.category === "string" ? body.category : body.category === null ? null : undefined;
+
+  if ((typeof body.title === "string" && !title) || (typeof body.content === "string" && !content)) {
+    return new Response("Invalid payload", { status: 400 });
+  }
+
+  if (title === undefined && content === undefined && category === undefined) {
+    return new Response("Invalid payload", { status: 400 });
+  }
+
   const note = await updateQuickNote(user.id, params.id!, {
-    title: typeof body.title === "string" ? body.title : undefined,
-    content: typeof body.content === "string" ? body.content : undefined,
-    category: typeof body.category === "string" || body.category === null ? body.category : undefined,
+    title,
+    content,
+    category,
   });
 
   if (!note) return new Response("Not found", { status: 404 });

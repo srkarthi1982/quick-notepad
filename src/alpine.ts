@@ -12,10 +12,31 @@ type NoteItem = {
   createdAt: string | Date;
 };
 
+type Summary = Record<string, number | string | null>;
+
+type QuickNotepadStore = {
+  notes: NoteItem[];
+  summary: Summary | null;
+  query: string;
+  activeTab: "overview" | "notes" | "favorites" | "archived";
+  categoryFilter: string;
+  flash: { type: string; message: string };
+  drawerOpen: boolean;
+  isSubmitting: boolean;
+  activeNote: NoteItem | null;
+  init(payload: { notes: NoteItem[]; summary: Summary }): void;
+  readonly filteredNotes: NoteItem[];
+  refresh(): Promise<void>;
+  openCreate(): void;
+  openEdit(note: NoteItem): void;
+  saveNote(form: HTMLFormElement): Promise<void>;
+  triggerAction(id: string, action: string): Promise<void>;
+};
+
 export default function initAlpine(Alpine: Alpine) {
-  Alpine.store("quickNotepad", {
+  const store: QuickNotepadStore = {
     notes: [] as NoteItem[],
-    summary: null as Record<string, number | string | null> | null,
+    summary: null,
     query: "",
     activeTab: "overview",
     categoryFilter: "",
@@ -24,7 +45,7 @@ export default function initAlpine(Alpine: Alpine) {
     isSubmitting: false,
     activeNote: null as NoteItem | null,
 
-    init(payload: { notes: NoteItem[]; summary: Record<string, number | string | null> }) {
+    init(payload: { notes: NoteItem[]; summary: Summary }) {
       this.notes = payload.notes ?? [];
       this.summary = payload.summary;
     },
@@ -100,5 +121,7 @@ export default function initAlpine(Alpine: Alpine) {
 
       await this.refresh();
     },
-  });
+  };
+
+  Alpine.store("quickNotepad", store);
 }

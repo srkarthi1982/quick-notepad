@@ -1,7 +1,7 @@
-import { and, db, desc, eq } from "astro:db";
-import { QuickNotes } from "../../db/tables";
+import { and, db, desc, eq, QuickNotes } from "astro:db";
 
 export type NoteStatus = "active" | "archived";
+export type QuickNote = typeof QuickNotes.$inferSelect;
 
 export type QuickNoteInput = {
   title: string;
@@ -9,7 +9,7 @@ export type QuickNoteInput = {
   category?: string | null;
 };
 
-export async function listQuickNotes(userId: string, options?: { status?: NoteStatus | "all"; search?: string; category?: string; favoritesOnly?: boolean; pinnedOnly?: boolean }) {
+export async function listQuickNotes(userId: string, options?: { status?: NoteStatus | "all"; search?: string; category?: string; favoritesOnly?: boolean; pinnedOnly?: boolean }): Promise<QuickNote[]> {
   const filters = [eq(QuickNotes.userId, userId)];
 
   if (options?.status && options.status !== "all") {
@@ -26,9 +26,7 @@ export async function listQuickNotes(userId: string, options?: { status?: NoteSt
   }
 
   const where = filters.length === 1 ? filters[0] : and(...filters);
-  let query = db.select().from(QuickNotes).where(where).orderBy(desc(QuickNotes.updatedAt));
-
-  const items = await query;
+  const items = await db.select().from(QuickNotes).where(where).orderBy(desc(QuickNotes.updatedAt)) as QuickNote[];
 
   if (!options?.search?.trim()) return items;
 
@@ -41,13 +39,13 @@ export async function listQuickNotes(userId: string, options?: { status?: NoteSt
   );
 }
 
-export async function getQuickNoteDetail(userId: string, id: string) {
+export async function getQuickNoteDetail(userId: string, id: string): Promise<QuickNote | null> {
   const [note] = await db
     .select()
     .from(QuickNotes)
     .where(and(eq(QuickNotes.id, id), eq(QuickNotes.userId, userId)));
 
-  return note ?? null;
+  return (note as QuickNote | undefined) ?? null;
 }
 
 export async function createQuickNote(userId: string, input: QuickNoteInput) {
